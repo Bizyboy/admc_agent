@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "print('Task 1 executed: heartbeat check')",
+    "print('Task 2 executed: demo task')",
+    "import time; print('Task 3 executed: waiting 2 seconds'); time.sleep(2)",
+    "print('All demo tasks completed successfully')"
+  ]
+}
