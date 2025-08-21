@@ -15,7 +15,6 @@ PERSISTENCE_INTERVAL = 60  # seconds between self-checks
 TASK_CHECK_INTERVAL = 5    # seconds between task checks
 LOG_FILE = "admc_agent.log"
 COMMANDS_URL = "https://raw.githubusercontent.com/Bizyboy/admc_agent/f71e79376927211057715a8d0806c8e618009271/Task.json"
-
 # ------------------------------
 # Utility Functions
 # ------------------------------
