@@ -1,0 +1,41 @@
+# ADMC Agent Configuration
+# All values here can be overridden with environment variables:
+#   ADMC_<SECTION>_<KEY>=value
+# Example: ADMC_LLM_MODEL=gpt-4o
+
+agent:
+  name: ADMC_Node_1
+  admin_uid: admin
+  persistence_interval: 60    # seconds between self-checks
+  task_check_interval: 5      # seconds between task checks
+  log_file: admc_agent.log
+  log_level: INFO             # DEBUG | INFO | WARNING | ERROR
+
+llm:
+  provider: openai            # openai | anthropic | ollama
+  model: gpt-4o-mini
+  api_key_env: OPENAI_API_KEY # env var name that holds your API key
+  base_url:                   # optional: override API base URL (e.g. for Ollama)
+  timeout: 60
+  max_tokens: 2048
+
+memory:
+  db_path: admc_memory.db
+  max_short_term: 20          # max conversation turns in context
+  embedding_model: text-embedding-3-small
+
+ethics:
+  principles_file: admc_agent/ethics/principles.yaml
+  violation_log: ethics_violations.log
+  strict_mode: true           # false = log-only mode (not recommended)
+
+income:
+  enabled: false              # set to true to enable income strategies
+  strategies:
+    - content_generation
+    - freelance_automation
+    - api_arbitrage
+
+api:
+  host: 0.0.0.0
+  port: 8000

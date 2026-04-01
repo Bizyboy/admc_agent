@@ -1,0 +1,26 @@
+# ADMC Agent — Dependencies
+# Install: pip install -r requirements.txt
+
+# Core
+PyYAML>=6.0
+requests>=2.31.0
+
+# LLM providers (install the one you need)
+openai>=1.30.0
+# anthropic>=0.28.0      # uncomment for Anthropic support
+
+# REST API (optional — for interfaces/api.py)
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=5.0.0
+
+# Optional: vector embeddings for semantic memory search
+# sentence-transformers>=3.0.0
+
+# Optional: fine-tuning
+# axolotl>=0.4.0
+# deepspeed>=0.14.0

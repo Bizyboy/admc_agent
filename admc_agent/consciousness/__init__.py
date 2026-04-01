@@ -1,0 +1,1 @@
+"""Consciousness simulation package."""
