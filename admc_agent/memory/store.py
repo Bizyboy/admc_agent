@@ -5,6 +5,7 @@ Stores:
   - Short-term conversation history per user (last N turns)
   - Long-term episodic journal entries (timestamped observations)
   - Key-value facts (persistent beliefs)
+  - User facts (long-term memory of things users have told the agent)
 """
 from __future__ import annotations
 
@@ -41,8 +42,17 @@ CREATE TABLE IF NOT EXISTS facts (
     updated   REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_facts (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id   TEXT    NOT NULL,
+    content   TEXT    NOT NULL,
+    category  TEXT    NOT NULL DEFAULT 'general',
+    ts        REAL    NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversation(user_id, ts);
 CREATE INDEX IF NOT EXISTS idx_episodic_ts ON episodic(ts);
+CREATE INDEX IF NOT EXISTS idx_user_facts_user ON user_facts(user_id);
 """
 
 
@@ -82,6 +92,33 @@ class MemoryStore:
         rows = cur.fetchall()
         return [{"role": r[0], "content": r[1], "ts": r[2]} for r in reversed(rows)]
 
+    def get_full_history(self, user_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        """Return conversation history with timestamps formatted for display."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "SELECT role, content, ts FROM conversation WHERE user_id = ? ORDER BY ts DESC LIMIT ?",
+            (user_id, limit),
+        )
+        rows = cur.fetchall()
+        return [
+            {
+                "role": r[0],
+                "content": r[1],
+                "ts": r[2],
+                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r[2])),
+            }
+            for r in reversed(rows)
+        ]
+
+    def clear_history(self, user_id: str) -> int:
+        """Clear conversation history for a user. Returns number of rows deleted."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "DELETE FROM conversation WHERE user_id = ?", (user_id,)
+        )
+        conn.commit()
+        return cur.rowcount
+
     def get_all_users(self) -> list[str]:
         conn = self._get_conn()
         cur = conn.execute("SELECT DISTINCT user_id FROM conversation")
@@ -101,6 +138,53 @@ class MemoryStore:
         )
         result = cur.fetchone()[0]
         return result
+
+    # ---------------------------------------------------------------------- #
+    # User facts (long-term memory about users)
+    # ---------------------------------------------------------------------- #
+
+    def add_user_fact(self, user_id: str, content: str, category: str = "general") -> None:
+        """Store a fact the user has shared (remembered across sessions)."""
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO user_facts (user_id, content, category, ts) VALUES (?, ?, ?, ?)",
+            (user_id, content, category, time.time()),
+        )
+        conn.commit()
+        logger.info("User fact stored for '%s': %s", user_id, content[:80])
+
+    def get_user_facts(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """Retrieve all stored facts about a user."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "SELECT id, content, category, ts FROM user_facts WHERE user_id = ? ORDER BY ts DESC LIMIT ?",
+            (user_id, limit),
+        )
+        return [
+            {"id": r[0], "content": r[1], "category": r[2], "ts": r[3]}
+            for r in cur.fetchall()
+        ]
+
+    def search_user_facts(self, user_id: str, query: str) -> list[dict[str, Any]]:
+        """Search user facts by keyword (case-insensitive)."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "SELECT id, content, category, ts FROM user_facts WHERE user_id = ? AND content LIKE ? ORDER BY ts DESC",
+            (user_id, f"%{query}%"),
+        )
+        return [
+            {"id": r[0], "content": r[1], "category": r[2], "ts": r[3]}
+            for r in cur.fetchall()
+        ]
+
+    def delete_user_fact(self, user_id: str, fact_id: int) -> bool:
+        """Delete a specific user fact by ID."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "DELETE FROM user_facts WHERE id = ? AND user_id = ?", (fact_id, user_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
 
     # ---------------------------------------------------------------------- #
     # Episodic journal
@@ -151,6 +235,27 @@ class MemoryStore:
         if row:
             return json.loads(row[0])
         return default
+
+    # ---------------------------------------------------------------------- #
+    # Statistics
+    # ---------------------------------------------------------------------- #
+
+    def stats(self) -> dict[str, Any]:
+        """Return memory store statistics."""
+        conn = self._get_conn()
+        conv_count = conn.execute("SELECT COUNT(*) FROM conversation").fetchone()[0]
+        episodic_count = conn.execute("SELECT COUNT(*) FROM episodic").fetchone()[0]
+        facts_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+        user_facts_count = conn.execute("SELECT COUNT(*) FROM user_facts").fetchone()[0]
+        user_count = len(self.get_all_users())
+        return {
+            "conversations": conv_count,
+            "episodic_entries": episodic_count,
+            "facts": facts_count,
+            "user_facts": user_facts_count,
+            "unique_users": user_count,
+            "db_path": self._db_path,
+        }
 
     # ---------------------------------------------------------------------- #
     # Lifecycle
