@@ -53,7 +53,7 @@ class ContentGenerationStrategy(IncomeStrategy):
             logger.info("Content generated: %s (%d chars)", filename, len(content))
             return {
                 "success": True,
-                "message": f"Generated {format} article on '{topic}' → {filename}",
+                "message": f"Generated {content_format} article on '{topic}' → {filename}",
                 "estimated_revenue": self.estimated_yield(),
                 "filename": filename,
                 "chars": len(content),
