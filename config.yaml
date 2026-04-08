@@ -12,10 +12,10 @@ agent:
   log_level: INFO             # DEBUG | INFO | WARNING | ERROR
 
 llm:
-  provider: openai            # openai | anthropic | ollama
-  model: gpt-4o-mini
-  api_key_env: OPENAI_API_KEY # env var name that holds your API key
-  base_url:                   # optional: override API base URL (e.g. for Ollama)
+  provider: openai                    # openai | anthropic | ollama
+  model: llama-3.3-70b-versatile      # Free Groq model (fast + smart)
+  api_key_env: GROQ_API_KEY           # Get free key at console.groq.com
+  base_url: https://api.groq.com/openai/v1  # Groq OpenAI-compatible endpoint
   timeout: 60
   max_tokens: 2048
 
