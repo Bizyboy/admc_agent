@@ -13,7 +13,7 @@ agent:
 
 llm:
   provider: openai                    # openai | anthropic | ollama
-  model: llama-3.3-70b-versatile      # Free Groq model (fast + smart)
+  model: llama-3.1-8b-instant      # Free Groq model (fast + smart)
   api_key_env: GROQ_API_KEY           # Get free key at console.groq.com
   base_url: https://api.groq.com/openai/v1  # Groq OpenAI-compatible endpoint
   timeout: 60
