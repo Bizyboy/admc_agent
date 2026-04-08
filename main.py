@@ -3,7 +3,9 @@
 ADMC Agent — Entry Point
 
 Usage:
-  python main.py            # Start interactive CLI
+  python main.py            # Start interactive CLI chat
+  python main.py --chat     # Start interactive CLI chat (explicit)
+  python main.py --think    # Start CLI with inner-thought mode enabled
   python main.py --api      # Start FastAPI REST server
   python main.py --daemon   # Run in background daemon mode (no CLI)
 """
@@ -26,6 +28,17 @@ def main() -> None:
         "--daemon",
         action="store_true",
         help="Run agent in background daemon mode (no interactive interface).",
+    )
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Start interactive CLI chat (default mode).",
+    )
+    parser.add_argument(
+        "--think", "--verbose",
+        action="store_true",
+        dest="think",
+        help="Enable inner-thought (verbose) mode — shows the agent's reasoning process.",
     )
     parser.add_argument(
         "--config",
@@ -65,12 +78,12 @@ def main() -> None:
             agent.stop()
 
     else:
-        # Default: interactive CLI
+        # Default: interactive CLI chat
         from admc_agent.core.agent import ADMCAgent
         from admc_agent.interfaces.cli import run_cli
         agent = ADMCAgent(config)
         agent.start()
-        run_cli(agent)
+        run_cli(agent, verbose=args.think)
 
 
 if __name__ == "__main__":
