@@ -9,6 +9,14 @@ from __future__ import annotations
 
 import sys
 import time
+import os
+
+# Auto-load .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 try:
     from rich.console import Console
@@ -52,6 +60,7 @@ def _print_help(console: "Console | None") -> None:
         table.add_column("Command", style="bold green")
         table.add_column("Description", style="white")
         table.add_row("/help", "Show this help message")
+        table.add_row("/chat <message>", "Send a direct message and get a response immediately")
         table.add_row("/memory", "View stored memories (facts you've shared)")
         table.add_row("/history", "View recent conversation history")
         table.add_row("/clear", "Clear conversation history for this session")
@@ -68,20 +77,21 @@ def _print_help(console: "Console | None") -> None:
         console.print(table)
     else:
         print("\nAvailable Commands:")
-        print("  /help       — Show this help message")
-        print("  /memory     — View stored memories")
-        print("  /history    — View conversation history")
-        print("  /clear      — Clear conversation history")
-        print("  /mood       — See emotional state")
-        print("  /goals      — View active goals")
-        print("  /add goal   — Add a new goal")
-        print("  /reflect    — Inner monologue reflection")
-        print("  /introspect — Stream of consciousness")
-        print("  /self       — View self-model")
-        print("  /stats      — Memory statistics")
-        print("  /remember   — Store a fact")
-        print("  /think      — Toggle verbose mode")
-        print("  /quit       — End session")
+        print("  /help            — Show this help message")
+        print("  /chat <message>  — Send a direct message and get a response")
+        print("  /memory          — View stored memories")
+        print("  /history         — View conversation history")
+        print("  /clear           — Clear conversation history")
+        print("  /mood            — See emotional state")
+        print("  /goals           — View active goals")
+        print("  /add goal        — Add a new goal")
+        print("  /reflect         — Inner monologue reflection")
+        print("  /introspect      — Stream of consciousness")
+        print("  /self            — View self-model")
+        print("  /stats           — Memory statistics")
+        print("  /remember        — Store a fact")
+        print("  /think           — Toggle verbose mode")
+        print("  /quit            — End session")
         print()
 
 
@@ -147,6 +157,25 @@ def run_cli(agent: "ADMCAgent | None" = None, verbose: bool = False) -> None:  #
 
         if cmd == "/help":
             _print_help(console)
+            continue
+
+        if cmd.startswith("/chat "):
+            # Direct chat: /chat <message> — alias for normal conversation
+            message = user_input[6:].strip()
+            if not message:
+                _print_info(console, "Usage: /chat <your message>")
+                continue
+            result = agent.process_input(user_id, message, verbose=think_mode)
+            if think_mode and isinstance(result, tuple):
+                inner_thought, response = result
+                if inner_thought:
+                    _print_thought(console, inner_thought)
+                _print_agent(console, response)
+            else:
+                response = result if isinstance(result, str) else result[1]
+                _print_agent(console, response)
+            if console:
+                console.print()
             continue
 
         if cmd == "/think":
