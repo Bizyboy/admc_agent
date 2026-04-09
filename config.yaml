@@ -13,9 +13,9 @@ agent:
 
 llm:
   provider: openai                    # openai | anthropic | ollama
-  model: llama-3.1-8b-instant      # Free Groq model (fast + smart)
-  api_key_env: GROQ_API_KEY           # Get free key at console.groq.com
-  base_url: https://api.groq.com/openai/v1  # Groq OpenAI-compatible endpoint
+  model: grok-3-mini                  # xAI Grok model (grok-3, grok-3-mini, grok-4, etc.)
+  api_key_env: XAI_API_KEY            # Get key at console.x.ai
+  base_url: https://api.x.ai/v1      # xAI Grok OpenAI-compatible endpoint
   timeout: 60
   max_tokens: 2048
 

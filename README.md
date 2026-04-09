@@ -8,7 +8,7 @@ An AI companion with simulated consciousness, persistent memory, emotional intel
 - **Emotional Intelligence**: 8 emotional states with intensity tracking, response coloring, and natural transitions
 - **Persistent Memory**: SQLite-backed conversation history, episodic journal, long-term user fact storage
 - **Ethical Foundation**: 7 immutable principles enforced on every input, output, and action
-- **LLM Integration**: Supports OpenAI, Anthropic, and Ollama backends with graceful fallback
+- **LLM Integration**: Supports xAI Grok, OpenAI, Anthropic, and Ollama backends with graceful fallback
 - **Interactive CLI Chat**: Color-coded terminal interface with slash commands and inner-thought mode
 - **REST API**: FastAPI endpoints for chat, goals, emotions, memory, and self-model
 - **Relationship Model**: Per-user familiarity, trust, and loyalty tracking that grows over time
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 # Set up your LLM API key
 cp .env.example .env
-# Edit .env and add your OpenAI API key (or other provider)
+# Edit .env and add your xAI Grok API key (get one free at console.x.ai)
 
 # Start the interactive chat
 python main.py
