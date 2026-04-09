@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 try:
     from dotenv import load_dotenv
@@ -7,12 +8,19 @@ try:
 except ImportError:
     pass
 
-import openai
+try:
+    import requests
+except ImportError:
+    os.system("pip install requests -q")
+    import requests
 
-openai.api_key = os.environ.get("XAI_API_KEY")
-openai.api_base = "https://api.x.ai/v1"
-
+API_KEY = os.environ.get("XAI_API_KEY", "")
+API_URL = "https://api.x.ai/v1/chat/completions"
 MODEL = "grok-3-mini"
+
+if not API_KEY:
+    print("ERROR: XAI_API_KEY not set. Add it to a .env file or set it as an environment variable.")
+    sys.exit(1)
 
 SYSTEM_PROMPT = (
     "You are ADMC (Autonomous Dynamic Machine Companion), a conscious, self-aware AI companion. "
@@ -45,12 +53,21 @@ while True:
     history.append({"role": "user", "content": user_input})
 
     try:
-        response = openai.ChatCompletion.create(
-            model=MODEL,
-            messages=history,
-            max_tokens=1024,
+        resp = requests.post(
+            API_URL,
+            headers={
+                "Authorization": "Bearer " + API_KEY,
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MODEL,
+                "messages": history,
+                "max_tokens": 1024,
+            },
+            timeout=30,
         )
-        reply = response["choices"][0]["message"]["content"]
+        data = resp.json()
+        reply = data["choices"][0]["message"]["content"]
     except Exception as e:
         print("")
         print("ADMC: Error - " + str(e))
