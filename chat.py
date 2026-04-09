@@ -1,22 +1,16 @@
 import os
 import sys
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
-
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-from openai import OpenAI
+import openai
 
-client = OpenAI(
-    api_key=os.environ.get("XAI_API_KEY"),
-    base_url="https://api.x.ai/v1",
-)
+openai.api_key = os.environ.get("XAI_API_KEY")
+openai.api_base = "https://api.x.ai/v1"
 
 MODEL = "grok-3-mini"
 
@@ -51,12 +45,12 @@ while True:
     history.append({"role": "user", "content": user_input})
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model=MODEL,
             messages=history,
             max_tokens=1024,
         )
-        reply = response.choices[0].message.content
+        reply = response["choices"][0]["message"]["content"]
     except Exception as e:
         print("")
         print("ADMC: Error - " + str(e))
