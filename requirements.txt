@@ -4,6 +4,14 @@
 # Core
 PyYAML>=6.0
 requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Voice input (speak to ADMC)
+SpeechRecognition>=3.10.0
+# pyaudio>=0.2.14         # required for mic input - install separately if needed
+
+# Voice output (ADMC speaks back)
+pyttsx3>=2.90
 
 # LLM providers (install the one you need)
 openai>=1.30.0
