@@ -6,9 +6,13 @@ PyYAML>=6.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# Voice input (speak to ADMC)
+# Voice input - fully offline via CMU PocketSphinx (no API key needed)
 SpeechRecognition>=3.10.0
+pocketsphinx>=5.0.0
 # pyaudio>=0.2.14         # required for mic input - install separately if needed
+# On Termux: pkg install python-pyaudio
+# On Windows: pip install pyaudio
+# On Linux:   sudo apt install portaudio19-dev && pip install pyaudio
 
 # Voice output (ADMC speaks back)
 pyttsx3>=2.90

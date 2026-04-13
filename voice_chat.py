@@ -57,13 +57,14 @@ except Exception:
 
 try:
     import speech_recognition as sr
+    import pocketsphinx  # offline engine - no API key needed
     _recognizer = sr.Recognizer()
     _recognizer.energy_threshold = 300
     _recognizer.dynamic_energy_threshold = True
     MIC_OK = True
-except Exception:
+except ImportError as _e:
     MIC_OK = False
-    print("SpeechRecognition not available — install: pip install SpeechRecognition pyaudio")
+    print("Offline speech unavailable — install: pip install SpeechRecognition pocketsphinx pyaudio")
 
 try:
     from plyer import notification as _plyer_notif
@@ -200,7 +201,8 @@ def listen_once(timeout=8, phrase_limit=20):
         return None, False
 
     try:
-        text = _recognizer.recognize_google(audio)
+        # PocketSphinx - fully offline, no internet or API key needed
+        text = _recognizer.recognize_sphinx(audio)
         return text, was_speaking
     except Exception:
         return None, False
