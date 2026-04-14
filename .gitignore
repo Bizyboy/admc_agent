@@ -11,3 +11,4 @@ dist/
 build/
 *.egg-info/
 admc_memory.json
+admc_soul.json
