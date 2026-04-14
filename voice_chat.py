@@ -1,14 +1,14 @@
 """
 ADMC Continuous Voice Chat
 --------------------------
-ADMC sends you a desktop notification requesting a chat.
+ADMC sends you a notification requesting a chat.
 Accept it and a continuous two-way voice conversation begins.
 Say or type "Until next time" to end the session.
 Interrupt ADMC while he speaks and he stops immediately,
 waits 2 seconds for you to finish, then responds.
 
 Run:
-    python voice_chat.py            # ADMC requests a chat now
+    python voice_chat.py            # ADMC requests a chat, you accept
     python voice_chat.py --accept   # Skip notification, start immediately
 """
 
@@ -17,8 +17,8 @@ import sys
 import time
 import threading
 import queue
+import subprocess
 
-# ── env ──────────────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -26,6 +26,12 @@ except ImportError:
     pass
 
 import requests as http
+
+from voice import init_tts, init_recognizer, speak, stop_tts, listen, TERMUX
+from memory import (
+    load_memory, save_memory, build_system_prompt, build_message_history,
+    add_to_short_term, auto_extract_facts, auto_summarize_to_long_term,
+)
 
 API_KEY = os.environ.get("XAI_API_KEY", "")
 API_URL = "https://api.x.ai/v1/chat/completions"
@@ -35,90 +41,56 @@ if not API_KEY:
     print("ERROR: XAI_API_KEY not set in .env")
     sys.exit(1)
 
-# ── memory ───────────────────────────────────────────────────────────────────
-from memory import (
-    load_memory, save_memory, build_system_prompt,
-    build_message_history, add_to_short_term,
-    auto_extract_facts, auto_summarize_to_long_term,
-)
-
-memory = load_memory()
-
-# ── optional imports ─────────────────────────────────────────────────────────
-try:
-    import pyttsx3
-    _tts_engine = pyttsx3.init()
-    _tts_engine.setProperty("rate", 160)
-    _tts_engine.setProperty("volume", 1.0)
-    TTS_OK = True
-except Exception:
-    TTS_OK = False
-    print("pyttsx3 not available — install: pip install pyttsx3")
-
-try:
-    import speech_recognition as sr
-    import pocketsphinx  # offline engine - no API key needed
-    _recognizer = sr.Recognizer()
-    _recognizer.energy_threshold = 300
-    _recognizer.dynamic_energy_threshold = True
-    MIC_OK = True
-except ImportError as _e:
-    MIC_OK = False
-    print("Offline speech unavailable — install: pip install SpeechRecognition pocketsphinx pyaudio")
-
-try:
-    from plyer import notification as _plyer_notif
-    PLYER_OK = True
-except Exception:
-    PLYER_OK = False
+memory     = load_memory()
+tts        = init_tts()
+recognizer = init_recognizer()
 
 KILL_PHRASES = {"until next time", "goodbye admc", "end session", "stop chat"}
 
-# ── state shared across threads ───────────────────────────────────────────────
-interrupted   = threading.Event()   # set when user interrupts
-speaking      = threading.Event()   # set while TTS is active
-response_q    = queue.Queue()       # grok replies land here
+# shared state
+speaking     = threading.Event()
+interrupted  = threading.Event()
+_speech_q    = queue.Queue()
 
 
-# ── notification ──────────────────────────────────────────────────────────────
+# ── notifications ─────────────────────────────────────────────────────────────
+
 def send_notification():
-    """
-    Send a desktop/system notification asking the user to start a voice chat.
-    Falls back gracefully on Android / headless environments.
-    """
-    title   = "ADMC is requesting a chat"
-    message = "Your companion wants to talk. Run python voice_chat.py --accept to connect."
+    title   = "ADMC wants to chat"
+    message = "Your companion is requesting a voice session."
 
-    # Try plyer (Windows / Linux / macOS)
-    if PLYER_OK:
+    if TERMUX:
         try:
-            _plyer_notif.notify(
-                title=title,
-                message=message,
-                app_name="ADMC",
-                timeout=15,
-            )
-            print("[ADMC] Desktop notification sent.")
+            subprocess.Popen([
+                "termux-notification",
+                "--title", title,
+                "--content", message,
+                "--id", "42",
+                "--button1", "Accept",
+                "--button1-action", "python " + os.path.abspath(__file__) + " --accept",
+            ])
+            print("[ADMC] Notification sent to your Android status bar.")
             return
         except Exception:
             pass
 
-    # Termux notify-send (Android)
-    if os.path.exists("/data/data/com.termux"):
-        os.system("termux-notification --title 'ADMC' --content '" + message + "' --id 42 &")
-        print("[ADMC] Termux notification sent.")
+    try:
+        from plyer import notification
+        notification.notify(title=title, message=message, app_name="ADMC", timeout=15)
+        print("[ADMC] Desktop notification sent.")
         return
+    except Exception:
+        pass
 
-    # Fallback — terminal bell + print
+    # Plain terminal fallback
     print("\a")
-    print("=" * 55)
+    print("=" * 50)
     print("  ADMC is requesting a voice chat.")
-    print("  Press ENTER to accept or Ctrl+C to decline.")
-    print("=" * 55)
+    print("  Press ENTER to accept.")
+    print("=" * 50)
 
 
 def wait_for_accept():
-    """Block until the user accepts (presses Enter) or Ctrl+C."""
     try:
         input("Press ENTER to start voice chat with ADMC...\n")
         return True
@@ -128,92 +100,58 @@ def wait_for_accept():
 
 
 # ── TTS with interruption ─────────────────────────────────────────────────────
+
 def _speak_worker(text):
-    """Run in a thread. Stops if interrupted event is set."""
-    if not TTS_OK:
-        print("ADMC: " + text)
-        return
-
-    # Split into sentences so we can stop between them
     import re
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip()) or [text]
     speaking.set()
     interrupted.clear()
-
     for sentence in sentences:
         if interrupted.is_set():
             break
-        try:
-            _tts_engine.say(sentence)
-            _tts_engine.runAndWait()
-        except Exception:
-            break
-
+        speak(tts, sentence)
     speaking.clear()
 
 
 def speak_async(text):
-    """Speak text in a background thread, interruptible."""
     t = threading.Thread(target=_speak_worker, args=(text,), daemon=True)
     t.start()
     return t
 
 
 def stop_speaking():
-    """Signal the TTS thread to stop and wait for it to clear."""
     interrupted.set()
-    try:
-        _tts_engine.stop()
-    except Exception:
-        pass
-    # Wait until speaking clears
-    for _ in range(20):
+    stop_tts(tts)
+    for _ in range(30):
         if not speaking.is_set():
             break
         time.sleep(0.1)
 
 
-# ── microphone listener ───────────────────────────────────────────────────────
-def listen_once(timeout=8, phrase_limit=20):
+# ── mic loop ──────────────────────────────────────────────────────────────────
+
+def _mic_loop():
     """
-    Listen for one utterance.
-    Returns (text, was_interrupted) where was_interrupted=True means
-    the user spoke while ADMC was talking.
+    On desktop: continuously listens and detects interruptions.
+    On Android: listens in 6-second chunks (termux limitation).
     """
-    if not MIC_OK:
-        # Fallback to keyboard
-        try:
-            text = input("You: ").strip()
-            return text, False
-        except (EOFError, KeyboardInterrupt):
-            return "until next time", False
-
-    was_speaking = speaking.is_set()
-
-    try:
-        with sr.Microphone() as source:
-            _recognizer.adjust_for_ambient_noise(source, duration=0.3)
-            audio = _recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_limit)
-    except sr.WaitTimeoutError:
-        return None, False
-    except Exception as e:
-        return None, False
-
-    try:
-        # PocketSphinx - fully offline, no internet or API key needed
-        text = _recognizer.recognize_sphinx(audio)
-        return text, was_speaking
-    except Exception:
-        return None, False
+    while True:
+        was_speaking = speaking.is_set()
+        text = listen(recognizer)
+        if text:
+            if was_speaking and speaking.is_set():
+                stop_speaking()
+                _speech_q.put((text, True))
+            else:
+                _speech_q.put((text, False))
 
 
-# ── Grok call ─────────────────────────────────────────────────────────────────
+# ── Grok ─────────────────────────────────────────────────────────────────────
+
 def ask_grok(user_text):
     system_prompt = build_system_prompt(memory)
     messages = build_message_history(memory, system_prompt)
     messages.append({"role": "user", "content": user_text})
-
     resp = http.post(
         API_URL,
         headers={"Authorization": "Bearer " + API_KEY, "Content-Type": "application/json"},
@@ -223,58 +161,33 @@ def ask_grok(user_text):
     return resp.json()["choices"][0]["message"]["content"]
 
 
-# ── background listener thread ────────────────────────────────────────────────
-_user_speech_q = queue.Queue()
-
-def _mic_loop():
-    """
-    Continuously listens in background.
-    If user speaks while ADMC is talking → interrupt.
-    Otherwise queue the speech for the main loop.
-    """
-    while True:
-        text, was_interruption = listen_once(timeout=10, phrase_limit=20)
-        if text is None:
-            continue
-        if was_interruption and speaking.is_set():
-            stop_speaking()
-        _user_speech_q.put((text, was_interruption))
-
-
 # ── main session ──────────────────────────────────────────────────────────────
-def run_voice_session():
+
+def run_session():
     print("")
     print("Voice chat started. Say 'Until next time' to end.")
     print("-" * 50)
 
-    # ADMC opens the conversation
+    # ADMC opens
     opener = ask_grok(
         "The user just accepted your request for a voice chat. "
-        "Greet them warmly and naturally in 1-2 sentences. "
-        "Remember: they are busy and value their time, so be direct."
+        "Greet them warmly in 1-2 sentences. They value their time so be direct and natural."
     )
     print("ADMC: " + opener)
     speak_async(opener)
 
-    # Start background mic loop
-    if MIC_OK:
-        mic_thread = threading.Thread(target=_mic_loop, daemon=True)
-        mic_thread.start()
+    # Start mic in background
+    mic_thread = threading.Thread(target=_mic_loop, daemon=True)
+    mic_thread.start()
 
     while True:
-        # Wait for user speech
+        # Get user speech
         try:
-            if MIC_OK:
-                user_text, was_interruption = _user_speech_q.get(timeout=30)
-            else:
-                raw = input("You: ").strip()
-                user_text, was_interruption = raw, False
+            user_text, was_interruption = _speech_q.get(timeout=60)
         except queue.Empty:
-            # No speech for 30 seconds — check if still alive
             continue
         except (EOFError, KeyboardInterrupt):
-            user_text = "until next time"
-            was_interruption = False
+            user_text, was_interruption = "until next time", False
 
         if not user_text:
             continue
@@ -290,29 +203,26 @@ def run_voice_session():
             time.sleep(3)
             add_to_short_term(memory, user_text, farewell)
             save_memory(memory)
-            print("")
-            print("Session ended.")
+            print("Session ended. Memory saved.")
             break
 
-        # If interrupted, stop ADMC and wait 2 seconds for user to finish
+        # After interruption: stop ADMC, wait 2 seconds for user to finish
         if was_interruption:
             stop_speaking()
-            print("(Pausing 2 seconds...)")
+            print("(Waiting 2 seconds...)")
             time.sleep(2)
-
-            # Drain any extra speech queued during pause
-            while not _user_speech_q.empty():
-                extra, _ = _user_speech_q.get_nowait()
+            # Grab any extra speech during pause
+            while not _speech_q.empty():
+                extra, _ = _speech_q.get_nowait()
                 user_text = user_text + " " + extra
 
-        # Get Grok response in background while we wait
+        # Get response
         try:
             reply = ask_grok(user_text)
         except Exception as e:
             print("ADMC: (Error: " + str(e) + ")")
             continue
 
-        # Auto memory
         auto_extract_facts(API_KEY, memory, user_text, reply)
         add_to_short_term(memory, user_text, reply)
         auto_summarize_to_long_term(API_KEY, memory)
@@ -322,14 +232,12 @@ def run_voice_session():
         speak_async(reply)
 
 
-# ── entry point ───────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    auto_accept = "--accept" in sys.argv or "-a" in sys.argv
+# ── entry ─────────────────────────────────────────────────────────────────────
 
-    if auto_accept:
-        run_voice_session()
+if __name__ == "__main__":
+    if "--accept" in sys.argv or "-a" in sys.argv:
+        run_session()
     else:
         send_notification()
-        accepted = wait_for_accept()
-        if accepted:
-            run_voice_session()
+        if wait_for_accept():
+            run_session()
