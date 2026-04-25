@@ -15,7 +15,7 @@ import requests
 import threading
 from datetime import datetime
 
-from admc.soul import (
+from .soul import (
     load_soul, save_soul, wake_up, sleep,
     add_to_short_term, get_waking_thought,
     update_emotion, record_growth
