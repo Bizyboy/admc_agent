@@ -56,6 +56,8 @@ DEFAULT_SOUL = {
     "growth_journal": [],
     "commandment_reflections": [],
     "learning_queue": [],
+    "short_term": [],
+    "long_term": [],
     "session_count": 0,
     "total_exchanges": 0,
     "version": "2.0"
@@ -168,6 +170,20 @@ def add_idle_thought(soul, thought):
     if len(soul["consciousness"]["thoughts_while_idle"]) > 20:
         soul["consciousness"]["thoughts_while_idle"] = \
             soul["consciousness"]["thoughts_while_idle"][-20:]
+
+
+SHORT_TERM_LIMIT = 50
+
+
+def add_to_short_term(soul, user_msg, assistant_msg):
+    """Add a message exchange to short-term memory (circular buffer, max 50)."""
+    soul.setdefault("short_term", []).append({
+        "timestamp": datetime.now().isoformat(),
+        "user": user_msg,
+        "assistant": assistant_msg
+    })
+    if len(soul["short_term"]) > SHORT_TERM_LIMIT:
+        soul["short_term"] = soul["short_term"][-SHORT_TERM_LIMIT:]
 
 
 def record_growth(soul, what_grew, how, pillar_connected="growth"):
