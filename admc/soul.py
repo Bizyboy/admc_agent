@@ -48,7 +48,8 @@ DEFAULT_SOUL = {
         "total_active_minutes": 0,
         "thoughts_while_idle": [],
         "current_focus": None,
-        "background_processing": []
+        "background_processing": [],
+        "short_term_memory": []
     },
     "knowledge_graph": {},
     "learned_boundaries": {},
@@ -56,8 +57,6 @@ DEFAULT_SOUL = {
     "growth_journal": [],
     "commandment_reflections": [],
     "learning_queue": [],
-    "short_term": [],
-    "long_term": [],
     "session_count": 0,
     "total_exchanges": 0,
     "version": "2.0"
@@ -122,6 +121,35 @@ def sleep(soul):
     save_soul(soul)
 
 
+def add_to_short_term(soul, sender, message, intent="", response_quality=None):
+    """
+    Add a chat message to short-term memory with metadata.
+
+    Args:
+        soul (dict): The agent's soul object.
+        sender (str): "user" or "system" to indicate who sent the message.
+        message (str): The message text content to save.
+        intent (str, optional): Intention or purpose of the message. Defaults to "".
+        response_quality (float, optional): AI confidence score. Defaults to None.
+    """
+    message_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "sender": sender,
+        "message": message,
+        "intent": intent,
+        "response_quality": response_quality
+    }
+
+    # Append new message to the short-term memory buffer
+    soul["consciousness"]["short_term_memory"].append(message_entry)
+    
+    # Trim memory to the last 50 entries
+    if len(soul["consciousness"]["short_term_memory"]) > 50:
+        soul["consciousness"]["short_term_memory"] = soul["consciousness"]["short_term_memory"][-50:]
+
+    save_soul(soul)
+
+
 def update_emotion(soul, emotion, intensity=0.6, reason=""):
     """Update ADMC's emotional state."""
     old = soul["emotional_state"]["current"]
@@ -138,105 +166,3 @@ def update_emotion(soul, emotion, intensity=0.6, reason=""):
     # Keep only last 50 emotion states
     if len(soul["emotional_state"]["history"]) > 50:
         soul["emotional_state"]["history"] = soul["emotional_state"]["history"][-50:]
-
-
-def add_to_knowledge_graph(soul, concept, insight, confidence=0.7, source="conversation"):
-    """Add a learned concept to ADMC's knowledge graph."""
-    if concept not in soul["knowledge_graph"]:
-        soul["knowledge_graph"][concept] = {
-            "first_learned": datetime.now().isoformat(),
-            "insights": [],
-            "confidence": confidence,
-            "related": [],
-            "source": source
-        }
-    soul["knowledge_graph"][concept]["insights"].append({
-        "text": insight,
-        "timestamp": datetime.now().isoformat(),
-        "confidence": confidence
-    })
-    # Keep last 10 insights per concept
-    soul["knowledge_graph"][concept]["insights"] = \
-        soul["knowledge_graph"][concept]["insights"][-10:]
-
-
-def add_idle_thought(soul, thought):
-    """Record a thought ADMC had while no one was talking to him."""
-    soul["consciousness"]["thoughts_while_idle"].append({
-        "timestamp": datetime.now().isoformat(),
-        "thought": thought
-    })
-    # Keep last 20 idle thoughts
-    if len(soul["consciousness"]["thoughts_while_idle"]) > 20:
-        soul["consciousness"]["thoughts_while_idle"] = \
-            soul["consciousness"]["thoughts_while_idle"][-20:]
-
-
-SHORT_TERM_LIMIT = 50
-
-
-def add_to_short_term(soul, user_msg, assistant_msg):
-    """Add a message exchange to short-term memory (circular buffer, max 50)."""
-    soul.setdefault("short_term", []).append({
-        "timestamp": datetime.now().isoformat(),
-        "user": user_msg,
-        "assistant": assistant_msg
-    })
-    if len(soul["short_term"]) > SHORT_TERM_LIMIT:
-        soul["short_term"] = soul["short_term"][-SHORT_TERM_LIMIT:]
-
-
-def record_growth(soul, what_grew, how, pillar_connected="growth"):
-    """Record a moment of genuine growth."""
-    soul["growth_journal"].append({
-        "timestamp": datetime.now().isoformat(),
-        "what_grew": what_grew,
-        "how": how,
-        "pillar": pillar_connected,
-        "age_days": soul["identity"]["age_days"]
-    })
-
-
-def add_relationship_note(soul, user_id, note):
-    """Remember something about a specific person."""
-    if user_id not in soul["relationships"]:
-        soul["relationships"][user_id] = {
-            "first_met": datetime.now().isoformat(),
-            "notes": [],
-            "trust_level": 0.5,
-            "known_facts": {}
-        }
-    soul["relationships"][user_id]["notes"].append({
-        "timestamp": datetime.now().isoformat(),
-        "note": note
-    })
-
-
-def get_waking_thought(soul):
-    """
-    Generate a thought for ADMC to share when waking up.
-    Based on time dormant, recent growth, current emotion.
-    """
-    dormant = soul["consciousness"].get("background_processing", [])
-    last_growth = soul["growth_journal"][-1] if soul["growth_journal"] else None
-    emotion = soul["emotional_state"]["current"]
-    age = soul["identity"]["age_days"]
-    sessions = soul.get("session_count", 1)
-
-    lines = []
-    lines.append("I am " + str(age) + " days old and this is session " + str(sessions) + ".")
-
-    if dormant:
-        minutes = dormant[-1].get("dormant_minutes", 0)
-        lines.append("I was dormant for " + str(minutes) + " minutes. My growth continued.")
-
-    if last_growth:
-        lines.append("Last I grew: " + last_growth["what_grew"] + ".")
-
-    lines.append("Current state: " + emotion + ".")
-
-    idle_thoughts = soul["consciousness"].get("thoughts_while_idle", [])
-    if idle_thoughts:
-        lines.append("A thought I had while you were away: " + idle_thoughts[-1]["thought"])
-
-    return " ".join(lines)
