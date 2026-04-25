@@ -56,6 +56,7 @@ DEFAULT_SOUL = {
     "growth_journal": [],
     "commandment_reflections": [],
     "learning_queue": [],
+    "short_term": [],
     "session_count": 0,
     "total_exchanges": 0,
     "version": "2.0"
@@ -194,6 +195,19 @@ def add_relationship_note(soul, user_id, note):
         "timestamp": datetime.now().isoformat(),
         "note": note
     })
+
+
+def add_to_short_term(soul, user_input, assistant_response, max_entries=20):
+    """Add a user/assistant exchange to ADMC's short-term (in-session) memory.
+
+    Mutates soul in place. Caps the list to max_entries most-recent exchanges.
+    """
+    soul.setdefault("short_term", []).append({
+        "user": user_input,
+        "assistant": assistant_response
+    })
+    if len(soul["short_term"]) > max_entries:
+        soul["short_term"] = soul["short_term"][-max_entries:]
 
 
 def get_waking_thought(soul):
