@@ -206,7 +206,15 @@ def add_to_short_term(soul, user_input, assistant_response, max_entries=20):
         "user": user_input,
         "assistant": assistant_response
     })
-    if len(soul["short_term"]) > max_entries:
+    try:
+        max_entries = int(max_entries)
+    except (TypeError, ValueError):
+        max_entries = 20
+    max_entries = max(0, max_entries)
+
+    if max_entries == 0:
+        soul["short_term"] = []
+    elif len(soul["short_term"]) > max_entries:
         soul["short_term"] = soul["short_term"][-max_entries:]
 
 
